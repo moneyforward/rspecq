@@ -61,6 +61,9 @@ module RSpecQ
     # given in the command.
     attr_accessor :reproduction
 
+    # Output path for file, default is nil
+    attr_accessor :output_path
+
     attr_reader :queue
 
     def initialize(build_id:, worker_id:, redis_opts:)
@@ -91,6 +94,8 @@ module RSpecQ
       queue.wait_until_published(queue_wait_timeout)
       queue.save_worker_seed(@worker_id, seed)
 
+      job_id = 0
+
       loop do
         # we have to bootstrap this so that it can be used in the first call
         # to `requeue_lost_job` inside the work loop
@@ -110,8 +115,10 @@ module RSpecQ
 
         next if job.nil?
 
+        job_id += 1
+
         puts
-        puts "Executing #{job}"
+        puts "Executing job #{job_id}: #{job}"
 
         reset_rspec_state!
 
@@ -128,12 +135,21 @@ module RSpecQ
         end
 
         options = ["--format", "progress", job]
+        if output_path
+          options.push("--format", "RspecJunitFormatter", "-o", get_output_filename(job_id))
+        end
         tags.each { |tag| options.push("--tag", tag) }
         opts = RSpec::Core::ConfigurationOptions.new(options)
         _result = RSpec::Core::Runner.new(opts).run($stderr, $stdout)
 
         queue.acknowledge_job(job)
       end
+    end
+
+    def get_output_filename(job_id)
+      ext = File.extname(output_path)
+      basename = File.basename(output_path, ext)
+      File.join(File.dirname(output_path), "#{basename}_#{job_id}#{ext}")
     end
 
     # Update the worker heartbeat if necessary
@@ -252,7 +268,7 @@ module RSpecQ
 
         return files
       end
-      puts out
+
       JSON.parse(out)["examples"].map { |e| e["id"] }
     end
 

@@ -109,6 +109,12 @@ OptionParser.new do |o|
     opts[:reproduction] = v
   end
 
+  o.on("--output O",
+    "Output file for aggregated test results for every job." \
+    "Formatted in RspecJunitFormatter") do |v|
+    opts[:output] = v
+  end
+
   o.on_tail("-h", "--help", "Show this message.") do
     puts o
     exit
@@ -181,5 +187,6 @@ else
   worker.seed = Integer(opts[:seed]) if opts[:seed]
   worker.reproduction = opts[:reproduction]
   worker.tags = opts[:tags]
+  worker.output_path = opts[:output]
   worker.work
 end
