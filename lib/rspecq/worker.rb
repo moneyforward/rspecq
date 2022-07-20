@@ -134,7 +134,7 @@ module RSpecQ
           RSpec.configuration.add_formatter(Formatters::JobTimingRecorder.new(queue, job))
         end
 
-        options = ["--format", "progress", job]
+        options = ["--format", "progress"] + job.split
         if output_path
           options.push("--format", "RspecJunitFormatter", "-o", get_output_filename(job_id))
         end
@@ -196,7 +196,14 @@ module RSpecQ
 
       if slow_files.any?
         jobs.concat(files_to_run - slow_files)
-        jobs.concat(files_to_example_ids(slow_files))
+        example_ids = files_to_example_ids(slow_files)
+        # batch every 50 examples as one by default
+        batch_size = ENV["EXAMPLE_BATCH"].to_i || 50 # temp, use better config parsing later
+        # TODO: calculate dynamically with ${CIRCLE_NODE_TOTAL}
+        grouped_examples = example_ids.each_slice(batch_size).to_a.map do |example_batch|
+          example_batch.join(" ")
+        end
+        jobs.concat(grouped_examples)
       else
         jobs.concat(files_to_run)
       end
