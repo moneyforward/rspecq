@@ -199,18 +199,18 @@ module RSpecQ
 
       if slow_files.any?
         jobs.concat(files_to_run - slow_files)
-        total_worker = ENV["CIRCLE_NODE_TOTAL"].to_i || 420 # TODO: parse from flag
+        total_worker = Integer(ENV["CIRCLE_NODE_TOTAL"] || 420) # TODO: parse from flag
 
         # max jobs before out of memory on 4GB RAM is ~65 jobs from experiment
-        jobs_per_worker_threshold = ENV["JOB_THRESHOLD"].to_i || 50 # let's set the threshold as 50 to be safe
+        jobs_per_worker_threshold = Integer(ENV["JOB_THRESHOLD"] || 50) # let's set the threshold as 50 to be safe
         jobs_per_worker = (jobs.size / total_worker).ceil # rough calculation
-        # assume jobs_per_worker_threshold > jobs_per_worker
-        example_job_threshold = jobs_per_worker_threshold - jobs_per_worker
+        # assume jobs_per_worker_threshold > jobs_per_worker, else 1
+        example_job_threshold = [jobs_per_worker_threshold - jobs_per_worker, 1].max
 
         example_ids = files_to_example_ids(slow_files)
 
-        example_job_worker = [example_ids.size / total_worker, example_job_threshold].min
-        batch_size = (example_ids.size / example_job_worker).ceil
+        example_job_worker = [example_ids.size.to_f / total_worker, example_job_threshold].min
+        batch_size = (example_ids.size.to_f / example_job_worker).ceil
 
         grouped_examples = example_ids.each_slice(batch_size).to_a.map do |example_batch|
           example_batch.join(" ")
