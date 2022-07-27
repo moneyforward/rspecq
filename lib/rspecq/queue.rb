@@ -199,6 +199,10 @@ module RSpecQ
     end
 
     def record_timing(job, duration)
+      if job.include? "[" # don't store grouped examples result
+        return
+      end
+
       @redis.zadd(key_timings, duration, job)
     end
 
