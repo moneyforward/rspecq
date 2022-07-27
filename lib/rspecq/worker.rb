@@ -208,14 +208,19 @@ module RSpecQ
         example_job_threshold = [jobs_per_worker_threshold - jobs_per_worker, 1].max
 
         example_ids = files_to_example_ids(slow_files)
-
-        example_job_worker = [example_ids.size.to_f / total_worker, example_job_threshold].min
-        batch_size = (example_ids.size.to_f / example_job_worker).ceil
-
-        grouped_examples = example_ids.each_slice(batch_size).to_a.map do |example_batch|
-          example_batch.join(" ")
+        if (example_ids.size.to_f / total_worker).ceil <= example_job_threshold
+          jobs.concat(example_ids)
+        else
+          example_job_total = example_job_threshold * total_worker # upper bound
+          batch_size = (example_ids.size.to_f / example_job_total).ceil
+          grouped_examples = example_ids.each_slice(batch_size).to_a.map do |example_batch|
+            # [a, b, c, d, e, f, g, h] -> [[a, b, c], [d, e, f], [g, h]] -> ["a b c", "d e f", "g h"]
+            # need to be space separated to pass to rspec
+            example_batch.join(" ")
+          end
+          jobs.concat(grouped_examples)
         end
-        jobs.concat(grouped_examples)
+
       else
         jobs.concat(files_to_run)
       end
