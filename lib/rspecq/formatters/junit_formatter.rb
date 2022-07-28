@@ -23,21 +23,21 @@ module RSpecQ
         end
       end
 
-      private
+      # private
 
-      def example_count
-        @summary_notification.example_count - @requeued_examples.size
-      end
+      # def example_count
+      #   @summary_notification.example_count - @requeued_examples.size
+      # end
 
-      def failure_count
-        @summary_notification.failure_count - @requeued_examples.size
-      end
+      # def failure_count
+      #   @summary_notification.failure_count - @requeued_examples.size
+      # end
 
-      def examples
-        @examples_notification.notifications.reject do |example_notification|
-          @requeued_examples.map(&:id).include?(example_notification.example.id)
-        end
-      end
+      # def examples
+      #   @examples_notification.notifications.reject do |example_notification|
+      #     @requeued_examples.map(&:id).include?(example_notification.example.id)
+      #   end
+      # end
     end
   end
 end
