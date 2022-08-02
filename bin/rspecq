@@ -143,6 +143,7 @@ end.parse!
 
 opts[:build] ||= ENV["RSPECQ_BUILD"]
 opts[:worker] ||= ENV["RSPECQ_WORKER"]
+opts[:total_worker] ||= Integer(ENV["RSPECQ_TOTAL_WORKER"] || 64)
 opts[:seed] ||= ENV["RSPECQ_SEED"]
 opts[:redis_host] ||= ENV["RSPECQ_REDIS"] || DEFAULT_REDIS_HOST
 opts[:timings] ||= env_set?("RSPECQ_UPDATE_TIMINGS")
@@ -194,6 +195,7 @@ else
   worker.files_or_dirs_to_run = ARGV if ARGV.any?
   worker.populate_timings = opts[:timings]
   worker.file_split_threshold = opts[:file_split_threshold]
+  worker.total_worker = opts[:total_worker]
   worker.max_requeues = opts[:max_requeues]
   worker.queue_wait_timeout = opts[:queue_wait_timeout]
   worker.fail_fast = opts[:fail_fast]

@@ -34,6 +34,12 @@ module RSpecQ
     # Defaults to 999999
     attr_accessor :file_split_threshold
 
+    # If set, the number of grouped examples per job will change
+    # depending on the number of workers
+    #
+    # Defaults to 64
+    attr_accessor :total_worker
+
     # Retry failed examples up to N times (with N being the supplied value)
     # before considering them legit failures
     #
@@ -79,6 +85,7 @@ module RSpecQ
       @files_or_dirs_to_run = "spec"
       @populate_timings = false
       @file_split_threshold = 999_999
+      @total_worker = 64
       @heartbeat_updated_at = nil
       @max_requeues = 3
       @queue_wait_timeout = 30
@@ -199,7 +206,6 @@ module RSpecQ
 
       if slow_files.any?
         jobs.concat(files_to_run - slow_files)
-        total_worker = Integer(ENV["CIRCLE_NODE_TOTAL"] || 420) # TODO: parse from flag
 
         # max jobs before out of memory on 4GB RAM is ~65 jobs from experiment
         jobs_per_worker_threshold = Integer(ENV["JOB_THRESHOLD"] || 50) # let's set the threshold as 50 to be safe
