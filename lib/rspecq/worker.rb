@@ -34,6 +34,12 @@ module RSpecQ
     # Defaults to 999999
     attr_accessor :file_split_threshold
 
+    # If set, the number of grouped examples per job will change
+    # depending on the number of workers
+    #
+    # Defaults to 64
+    attr_accessor :total_worker
+
     # Retry failed examples up to N times (with N being the supplied value)
     # before considering them legit failures
     #
@@ -45,6 +51,14 @@ module RSpecQ
     #
     # Defaults to 0
     attr_accessor :fail_fast
+
+    # Output Junit formatted XML to a specifiedd file
+    #
+    # Example: test_results/results-{{TEST_ENV_NUMBER}}-{{JOB_INDEX}}.xml
+    # where TEST_ENV_NUMBER is substituted with the environment variable
+    # from the gem parallel test, and JOB_INDEX is incremented based
+    # on the number of test suites run in the current process.
+    attr_accessor :junit_output
 
     # Time to wait for a queue to be published.
     #
@@ -71,17 +85,20 @@ module RSpecQ
       @files_or_dirs_to_run = "spec"
       @populate_timings = false
       @file_split_threshold = 999_999
+      @total_worker = 64
       @heartbeat_updated_at = nil
       @max_requeues = 3
       @queue_wait_timeout = 30
       @seed = srand && (srand % 0xFFFF)
       @tags = []
       @reproduction = false
+      @junit_output = nil
 
       RSpec::Core::Formatters.register(Formatters::JobTimingRecorder, :dump_summary)
       RSpec::Core::Formatters.register(Formatters::ExampleCountRecorder, :dump_summary)
       RSpec::Core::Formatters.register(Formatters::FailureRecorder, :example_failed, :message)
       RSpec::Core::Formatters.register(Formatters::WorkerHeartbeatRecorder, :example_finished)
+      RSpec::Core::Formatters.register(Formatters::JUnitFormatter, :example_failed, :start, :stop, :dump_summary)
     end
 
     def work
@@ -90,6 +107,8 @@ module RSpecQ
       try_publish_queue!(queue)
       queue.wait_until_published(queue_wait_timeout)
       queue.save_worker_seed(@worker_id, seed)
+
+      job_id = 0
 
       loop do
         # we have to bootstrap this so that it can be used in the first call
@@ -111,7 +130,7 @@ module RSpecQ
         next if job.nil?
 
         puts
-        puts "Executing #{job}"
+        puts "Executing job #{job_id}: #{job}"
 
         reset_rspec_state!
 
@@ -119,6 +138,12 @@ module RSpecQ
         RSpec.configuration.detail_color = :magenta
         RSpec.configuration.seed = seed
         RSpec.configuration.backtrace_formatter.filter_gem("rspecq")
+
+        if junit_output
+          RSpec.configuration.add_formatter(Formatters::JUnitFormatter.new(queue, job, max_requeues,
+                                                                           job_id, junit_output))
+        end
+
         RSpec.configuration.add_formatter(Formatters::FailureRecorder.new(queue, job, max_requeues, @worker_id))
         RSpec.configuration.add_formatter(Formatters::ExampleCountRecorder.new(queue))
         RSpec.configuration.add_formatter(Formatters::WorkerHeartbeatRecorder.new(self))
@@ -127,12 +152,13 @@ module RSpecQ
           RSpec.configuration.add_formatter(Formatters::JobTimingRecorder.new(queue, job))
         end
 
-        options = ["--format", "progress", job]
+        options = ["--format", "progress"] + job.split
         tags.each { |tag| options.push("--tag", tag) }
         opts = RSpec::Core::ConfigurationOptions.new(options)
         _result = RSpec::Core::Runner.new(opts).run($stderr, $stdout)
 
         queue.acknowledge_job(job)
+        job_id += 1
       end
     end
 
@@ -180,7 +206,27 @@ module RSpecQ
 
       if slow_files.any?
         jobs.concat(files_to_run - slow_files)
-        jobs.concat(files_to_example_ids(slow_files))
+
+        # max jobs before out of memory on 4GB RAM is ~65 jobs from experiment
+        jobs_per_worker_threshold = Integer(ENV["JOB_THRESHOLD"] || 50) # let's set the threshold as 50 to be safe
+        jobs_per_worker = (jobs.size / total_worker).ceil # rough calculation
+        # assume jobs_per_worker_threshold > jobs_per_worker, else 1
+        example_job_threshold = [jobs_per_worker_threshold - jobs_per_worker, 1].max
+
+        example_ids = files_to_example_ids(slow_files)
+        if (example_ids.size.to_f / total_worker).ceil <= example_job_threshold
+          jobs.concat(example_ids)
+        else
+          example_job_total = example_job_threshold * total_worker # upper bound
+          batch_size = (example_ids.size.to_f / example_job_total).ceil
+          grouped_examples = example_ids.each_slice(batch_size).to_a.map do |example_batch|
+            # [a, b, c, d, e, f, g, h] -> [[a, b, c], [d, e, f], [g, h]] -> ["a b c", "d e f", "g h"]
+            # need to be space separated to pass to rspec
+            example_batch.join(" ")
+          end
+          jobs.concat(grouped_examples)
+        end
+
       else
         jobs.concat(files_to_run)
       end
@@ -194,6 +240,9 @@ module RSpecQ
         # HEURISTIC: put jobs without previous timings (e.g. a newly added
         # spec file) in the middle of the queue
         h[j] = timings[j] || default_timing
+        if j.include? "["
+          h[j] = 999_999 # force to put example jobs in front
+        end
       end
 
       # sort jobs based on their timings (slowest to be processed first)
@@ -230,7 +279,7 @@ module RSpecQ
     # falling back to scheduling them as whole files. Their errors will be
     # reported in the normal flow when they're eventually picked up by a worker.
     def files_to_example_ids(files)
-      cmd = "DISABLE_SPRING=1 bundle exec rspec --dry-run --format json #{files.join(' ')}"
+      cmd = "env -u COVERAGE DISABLE_SPRING=1 bundle exec rspec --dry-run --format json #{files.join(' ')}"
       out, err, cmd_result = Open3.capture3(cmd)
 
       if !cmd_result.success?

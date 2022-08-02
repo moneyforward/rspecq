@@ -71,6 +71,18 @@ module RSpecQ
       return true
     LUA
 
+    REQUEUEABLE_JOB = <<~LUA.freeze
+      local key_requeues = KEYS[1]
+      local job = ARGV[1]
+      local max_requeues = ARGV[2]
+      local requeued_times = redis.call('hget', key_requeues, job)
+      if requeued_times and requeued_times >= max_requeues then
+        return nil
+      end
+      redis.call('hincrby', key_requeues, job, 1)
+      return true
+    LUA
+
     STATUS_INITIALIZING = "initializing".freeze
     STATUS_READY = "ready".freeze
 
@@ -79,7 +91,7 @@ module RSpecQ
     def initialize(build_id, worker_id, redis_opts)
       @build_id = build_id
       @worker_id = worker_id
-      @redis = Redis.new(redis_opts.merge(id: worker_id))
+      @redis = Redis.new(redis_opts.merge({ id: worker_id, ssl_params: { verify_mode: OpenSSL::SSL::VERIFY_NONE } }))
     end
 
     # NOTE: jobs will be processed from head to tail (lpop)
@@ -167,6 +179,16 @@ module RSpecQ
         "--reproduction #{jobs.join(' ')}"
     end
 
+    def requeueable_job?(job, max_requeues)
+      return false if max_requeues.zero?
+
+      @redis.eval(
+        REQUEUEABLE_JOB,
+        keys: [key_requeues_formatter_stats],
+        argv: [job, max_requeues]
+      )
+    end
+
     def record_example_failure(example_id, message)
       @redis.hset(key_failures, example_id, message)
     end
@@ -177,6 +199,10 @@ module RSpecQ
     end
 
     def record_timing(job, duration)
+      if job.include? "[" # don't store grouped examples result
+        return
+      end
+
       @redis.zadd(key_timings, duration, job)
     end
 
@@ -345,6 +371,10 @@ module RSpecQ
     # redis: HASH<job => times_retried>
     def key_requeues
       key("requeues")
+    end
+
+    def key_requeues_formatter_stats
+      key("requeues_formatter_stats")
     end
 
     # The total number of examples, those that were requeued.
