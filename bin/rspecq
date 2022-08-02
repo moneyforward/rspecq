@@ -72,6 +72,13 @@ OptionParser.new do |o|
     opts[:file_split_threshold] = v
   end
 
+  o.on("--worker-liveness N", Integer, "If a worker haven't executed an example for more than N " \
+    "seconds, it is considered dead and its reserved work will be put back " \
+    "to the queue to be picked up by another worker." \
+    "(default: #{RSpecQ::WORKER_LIVENESS_SEC}).") do |v|
+    opts[:worker_liveness] = v
+  end
+
   o.on("--report", "Enable reporter mode: do not pull tests off the queue; " \
                    "instead print build progress and exit when it's "        \
                    "finished.\n#{o.summary_indent * 9} "                       \
@@ -163,6 +170,10 @@ else
 end
 
 Sentry.init if ENV["SENTRY_DSN"]
+
+if opts[:worker_liveness]
+  RSpecQ::WORKER_LIVENESS_SEC = opts[:worker_liveness]
+end
 
 if opts[:report]
   reporter = RSpecQ::Reporter.new(
