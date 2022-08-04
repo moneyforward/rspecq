@@ -36,6 +36,9 @@ module RSpecQ
           # to be picked up by a different worker
           sleep 0.5
           return
+        else
+          # returns nil when hit requeue limit, use exit code 1
+          @queue.exit_code = 1
         end
 
         presenter = RSpec::Core::Formatters::ExceptionPresenter.new(
