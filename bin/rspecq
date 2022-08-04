@@ -203,5 +203,5 @@ else
   worker.reproduction = opts[:reproduction]
   worker.tags = opts[:tags]
   worker.junit_output = opts[:junit_output]
-  worker.work
+  exit worker.work
 end
