@@ -198,6 +198,7 @@ module RSpecQ
     # For errors occured outside of examples (e.g. while loading a spec file)
     def record_non_example_error(job, message)
       @redis.hset(key_errors, job, message)
+      @exit_code = 1
     end
 
     def record_timing(job, duration)
