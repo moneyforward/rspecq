@@ -40,6 +40,14 @@ OptionParser.new do |o|
     opts[:worker] = v
   end
 
+  o.on("--org ORG", "Organization name/VCS account name on Git ") do |v|
+    opts[:org_name] = v
+  end
+
+  o.on("--repo REPO", "Project repository name on Git ") do |v|
+    opts[:repo_name] = v
+  end
+
   o.on("--seed SEED", "The RSpec seed. Passing the seed can be helpful in " \
     "many ways i.e reproduction and testing.") do |v|
     opts[:seed] = v
@@ -143,6 +151,8 @@ end.parse!
 
 opts[:build] ||= ENV["RSPECQ_BUILD"]
 opts[:worker] ||= ENV["RSPECQ_WORKER"]
+opts[:org_name] ||= "your_org"
+opts[:repo_name] ||= "your_repo"
 opts[:total_worker] ||= Integer(ENV["RSPECQ_TOTAL_WORKER"] || 64)
 opts[:seed] ||= ENV["RSPECQ_SEED"]
 opts[:redis_host] ||= ENV["RSPECQ_REDIS"] || DEFAULT_REDIS_HOST
@@ -189,6 +199,8 @@ else
   worker = RSpecQ::Worker.new(
     build_id: opts[:build],
     worker_id: opts[:worker],
+    org_name: opts[:org_name],
+    repo_name: opts[:repo_name],
     redis_opts: redis_opts
   )
 

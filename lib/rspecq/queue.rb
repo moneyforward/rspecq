@@ -89,9 +89,11 @@ module RSpecQ
     attr_reader :redis
     attr_accessor :exit_code
 
-    def initialize(build_id, worker_id, redis_opts)
+    def initialize(build_id, worker_id, org_name, repo_name, redis_opts)
       @build_id = build_id
       @worker_id = worker_id
+      @org_name = org_name
+      @repo_name = repo_name
       @redis = Redis.new(redis_opts.merge({ id: worker_id, ssl_params: { verify_mode: OpenSSL::SSL::VERIFY_NONE } }))
       @exit_code = 0
     end
@@ -400,20 +402,24 @@ module RSpecQ
     # so be careful to only publish timings from a single branch (e.g. master).
     # Otherwise, timings won't be accurate.
     def key_timings
-      "timings"
+      shared_key("timings")
     end
 
     # redis: LIST<duration>
     #
     # Last build is at the head of the list.
     def key_build_times
-      "build_times"
+      shared_key("build_times")
     end
 
     private
 
     def key(*keys)
-      [@build_id, keys].join(":")
+      [@org_name, @repo_name, @build_id, keys].join(":")
+    end
+
+    def shared_key(key)
+      [@org_name, @repo_name, key].join(":")
     end
 
     # We don't use any Ruby `Time` methods because specs that use timecop in
