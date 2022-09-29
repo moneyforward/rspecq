@@ -52,7 +52,7 @@ module RSpecQ
     # Defaults to 0
     attr_accessor :fail_fast
 
-    # Output Junit formatted XML to a specifiedd file
+    # Output Junit formatted XML to a specified file
     #
     # Example: test_results/results-{{TEST_ENV_NUMBER}}-{{JOB_INDEX}}.xml
     # where TEST_ENV_NUMBER is substituted with the environment variable
