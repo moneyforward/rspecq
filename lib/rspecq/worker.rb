@@ -119,6 +119,7 @@ module RSpecQ
 
         return queue.exit_code if queue.build_failed_fast?
 
+        puts "1"
         lost = queue.requeue_lost_job
         puts "Requeued lost job: #{lost}" if lost
 
