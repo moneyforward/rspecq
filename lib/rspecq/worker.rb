@@ -201,7 +201,8 @@ module RSpecQ
       slow_files = []
 
       if file_split_threshold
-        slow_files = timings.take_while do |_job, duration|
+        slow_files = timings.take_while do |job, duration|
+          puts "#{job}: #{duration} / #{file_split_threshold}"
           duration >= file_split_threshold
         end.map(&:first) & files_to_run
       end
