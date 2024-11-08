@@ -257,6 +257,10 @@ module RSpecQ
       jobs = jobs.sort_by { |_j, t| -t }.map(&:first)
 
       puts "Published queue (size=#{queue.publish(jobs, fail_fast)})"
+
+      puts "!!!"
+      puts jobs.inspect
+      puts "!!!"
     end
 
     private
