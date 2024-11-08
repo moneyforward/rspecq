@@ -200,6 +200,11 @@ module RSpecQ
       jobs = []
       slow_files = []
 
+      puts "!" * 50
+      puts "FILE SPLIT THRESHOLD: #{file_split_threshold}"
+      puts timings.first(10).to_a
+      puts "!" * 50
+
       if file_split_threshold
         slow_files = timings.take_while do |job, duration|
           puts "#{job}: #{duration} / #{file_split_threshold}"
